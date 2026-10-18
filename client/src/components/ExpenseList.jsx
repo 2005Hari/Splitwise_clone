@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
+import { CaretDown, FileText, PencilSimple, Trash, X } from '@phosphor-icons/react';
 import { api } from '../api/client';
 import { formatMoney } from '../utils/money';
 import { ExpenseForm } from './ExpenseForm';
+import { CategoryIcon } from '../utils/categoryIcons';
 
-function CategoryIcon({ categoryId, categories }) {
+function ExpenseCategoryIcon({ categoryId, categories }) {
   const cat = categories.find((c) => c.id === categoryId);
-  return <span className="category-icon" title={cat?.label || categoryId}>{cat?.icon || '🧾'}</span>;
+  return (
+    <span className="category-icon" title={cat?.label || categoryId}>
+      <CategoryIcon categoryId={categoryId} size={18} />
+    </span>
+  );
 }
 
 function ExpenseComments({ groupId, expenseId }) {
@@ -131,11 +137,11 @@ function ExpenseReceipts({ groupId, expenseId }) {
                 rel="noreferrer"
                 className="receipt-file-link"
               >
-                📄 {r.original_name}
+                <FileText size={16} weight="bold" /> {r.original_name}
               </a>
             )}
-            <button className="btn btn-ghost btn-sm receipt-remove" onClick={() => remove(r.id)}>
-              ✕
+            <button className="icon-btn is-danger receipt-remove" aria-label="Remove receipt" title="Remove" onClick={() => remove(r.id)}>
+              <X size={14} weight="bold" />
             </button>
           </li>
         ))}
@@ -155,7 +161,13 @@ export function ExpenseList({ groupId, expenses, members, categories, currentUse
   const [deletingId, setDeletingId] = useState(null);
 
   if (expenses.length === 0) {
-    return <p className="hint">No expenses yet — add the first one below.</p>;
+    return (
+      <div className="empty-state">
+        <FileText size={32} weight="bold" className="empty-state-icon" />
+        <span className="empty-state-title">No expenses yet</span>
+        <span className="hint">Add the first one below.</span>
+      </div>
+    );
   }
 
   const deleteExpense = async (expense) => {
@@ -188,7 +200,7 @@ export function ExpenseList({ groupId, expenses, members, categories, currentUse
           ) : (
             <>
               <div className="expense-row">
-                <CategoryIcon categoryId={e.category} categories={categories} />
+                <ExpenseCategoryIcon categoryId={e.category} categories={categories} />
                 <div className="expense-main">
                   <span className="expense-description">{e.description}</span>
                   <span className="expense-meta">
@@ -211,16 +223,19 @@ export function ExpenseList({ groupId, expenses, members, categories, currentUse
                     {expandedId === e.id
                       ? 'Hide'
                       : `Details${e.comment_count || e.receipt_count ? ` (${e.comment_count + e.receipt_count})` : ''}`}
+                    <CaretDown size={14} weight="bold" style={{ transform: expandedId === e.id ? 'rotate(180deg)' : 'none' }} />
                   </button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(e.id)}>
-                    Edit
+                  <button className="icon-btn" aria-label="Edit expense" title="Edit" onClick={() => setEditingId(e.id)}>
+                    <PencilSimple size={16} weight="bold" />
                   </button>
                   <button
-                    className="btn btn-ghost btn-sm btn-danger-text"
+                    className="icon-btn is-danger"
+                    aria-label="Delete expense"
+                    title="Delete"
                     onClick={() => deleteExpense(e)}
                     disabled={deletingId === e.id}
                   >
-                    {deletingId === e.id ? 'Deleting…' : 'Delete'}
+                    <Trash size={16} weight="bold" />
                   </button>
                 </div>
               </div>

@@ -140,6 +140,7 @@ export function SettleUpButton({ groupId, transfer, currency, onSettled }) {
         <span className="settle-up-currency">{currencySymbol(currency)}</span>
         <input
           type="number"
+          inputMode="decimal"
           min="0.01"
           step="0.01"
           max={(transfer.amountCents / 100).toFixed(2)}

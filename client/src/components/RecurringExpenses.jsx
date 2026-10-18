@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Pause, Play, Plus, Trash } from '@phosphor-icons/react';
 import { api } from '../api/client';
 import { formatMoney } from '../utils/money';
 
@@ -84,11 +85,16 @@ export function RecurringExpenses({ groupId, members, currency, onFired }) {
               <div className="hint">next: {new Date(r.next_run_at).toLocaleDateString()}</div>
             </div>
             <div className="recurring-actions">
-              <button className="btn btn-ghost btn-sm" onClick={() => toggleActive(r)}>
-                {r.active ? 'Pause' : 'Resume'}
+              <button
+                className="icon-btn"
+                aria-label={r.active ? 'Pause' : 'Resume'}
+                title={r.active ? 'Pause' : 'Resume'}
+                onClick={() => toggleActive(r)}
+              >
+                {r.active ? <Pause size={16} weight="bold" /> : <Play size={16} weight="bold" />}
               </button>
-              <button className="btn btn-ghost btn-sm btn-danger-text" onClick={() => remove(r)}>
-                Remove
+              <button className="icon-btn is-danger" aria-label="Remove" title="Remove" onClick={() => remove(r)}>
+                <Trash size={16} weight="bold" />
               </button>
             </div>
           </li>
@@ -97,7 +103,8 @@ export function RecurringExpenses({ groupId, members, currency, onFired }) {
 
       {!showForm && (
         <button className="btn btn-ghost btn-sm" onClick={() => setShowForm(true)}>
-          + Add a recurring expense
+          <Plus size={14} weight="bold" />
+          Add a recurring expense
         </button>
       )}
       {showForm && (
@@ -109,7 +116,7 @@ export function RecurringExpenses({ groupId, members, currency, onFired }) {
             </label>
             <label>
               Amount
-              <input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+              <input type="number" inputMode="decimal" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
             </label>
           </div>
           <div className="form-row">

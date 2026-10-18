@@ -1,25 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { SignOut } from '@phosphor-icons/react';
 import { useAuth } from '../context/AuthContext';
-import { usePushNotifications } from '../hooks/usePushNotifications';
-
-function NotificationToggle() {
-  const { supported, subscribed, busy, enable, disable, error } = usePushNotifications();
-  if (!supported) return null;
-
-  return (
-    <span className="notification-toggle">
-      <button
-        className="btn btn-ghost btn-sm"
-        onClick={subscribed ? disable : enable}
-        disabled={busy}
-        title={subscribed ? 'Turn off browser notifications' : 'Get notified about new expenses, comments and payments'}
-      >
-        {subscribed ? '🔔 On' : '🔕 Off'}
-      </button>
-      {error && <span className="hint hint-error notification-error">{error}</span>}
-    </span>
-  );
-}
+import { NotificationToggle } from './NotificationToggle';
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -28,7 +10,8 @@ export function Navbar() {
   return (
     <header className="navbar">
       <Link to="/" className="brand">
-        split<span>wise</span> clone
+        <span className="brand-mark">S</span>
+        <span className="brand-text">splitwise clone</span>
       </Link>
       {user && (
         <nav className="navbar-right">
@@ -37,13 +20,15 @@ export function Navbar() {
           <NotificationToggle />
           <span className="navbar-user">{user.name}</span>
           <button
-            className="btn btn-ghost btn-sm"
+            className="icon-btn"
+            aria-label="Sign out"
+            title="Sign out"
             onClick={async () => {
               await logout();
               navigate('/login');
             }}
           >
-            Sign out
+            <SignOut size={18} weight="bold" />
           </button>
         </nav>
       )}

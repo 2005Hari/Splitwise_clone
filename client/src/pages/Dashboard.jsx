@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { CheckCircle, UsersThree } from '@phosphor-icons/react';
 import { api } from '../api/client';
 import { formatMoney, SUPPORTED_CURRENCIES } from '../utils/money';
 
@@ -27,7 +28,10 @@ function OverallSummary({ overview }) {
   if (balances.length === 0) {
     return (
       <div className="card overall-summary">
-        <p className="hint">You're all settled up everywhere. 🎉</p>
+        <div className="empty-state">
+          <CheckCircle size={32} weight="bold" />
+          <span className="empty-state-title">You're all settled up everywhere</span>
+        </div>
       </div>
     );
   }
@@ -114,7 +118,11 @@ export function Dashboard() {
       <div className="card">
         <h2>Your groups</h2>
         {groups.length === 0 && (
-          <p className="hint">No groups yet. Create one below to add your first expense.</p>
+          <div className="empty-state">
+            <UsersThree size={32} weight="bold" className="empty-state-icon" />
+            <span className="empty-state-title">No groups yet</span>
+            <span className="hint">Create one below to add your first expense.</span>
+          </div>
         )}
         <ul className="group-list">
           {groups.map((g) => (

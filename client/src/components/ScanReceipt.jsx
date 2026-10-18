@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Camera } from '@phosphor-icons/react';
 import { api } from '../api/client';
 
 const MAX_DIMENSION = 1600;
@@ -54,7 +55,8 @@ export function ScanReceipt({ groupId, onScanned }) {
   return (
     <div className="scan-receipt">
       <label className="btn btn-primary btn-sm scan-receipt-btn">
-        {scanning ? 'Reading receipt…' : '📷 Scan a receipt'}
+        <Camera size={16} weight="bold" />
+        {scanning ? 'Reading receipt…' : 'Scan a receipt'}
         <input
           type="file"
           accept="image/*"

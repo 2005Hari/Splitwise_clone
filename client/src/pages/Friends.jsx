@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { UsersThree } from '@phosphor-icons/react';
 import { api } from '../api/client';
 import { formatMoney } from '../utils/money';
+
+function initials(name) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('');
+}
 
 function FriendBalance({ balances }) {
   if (balances.length === 0) return <span className="pill">settled up</span>;
@@ -54,11 +64,20 @@ export function Friends() {
       <div className="card">
         <h2>Friends</h2>
         <p className="hint">Balances combined across every group and direct expense you share with each person.</p>
-        {friends.length === 0 && <p className="hint">No friends yet — add one below, or invite someone to a group.</p>}
+        {friends.length === 0 && (
+          <div className="empty-state">
+            <UsersThree size={32} weight="bold" className="empty-state-icon" />
+            <span className="empty-state-title">No friends yet</span>
+            <span className="hint">Add one below, or invite someone to a group.</span>
+          </div>
+        )}
         <ul className="friend-list">
           {friends.map((f) => (
             <li key={f.id} className="friend-row">
-              <Link to={`/friends/${f.id}`}>{f.name}</Link>
+              <Link to={`/friends/${f.id}`}>
+                <span className="friend-avatar">{initials(f.name)}</span>
+                {f.name}
+              </Link>
               <FriendBalance balances={f.balances} />
             </li>
           ))}

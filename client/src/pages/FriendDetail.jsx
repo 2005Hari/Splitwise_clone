@@ -3,6 +3,15 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { formatMoney } from '../utils/money';
 
+function initials(name) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('');
+}
+
 export function FriendDetail() {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -33,8 +42,13 @@ export function FriendDetail() {
   return (
     <div className="page">
       <div className="card">
-        <h2>{friend.name}</h2>
-        <p className="hint">{friend.email}</p>
+        <div className="friend-detail-header">
+          <span className="friend-avatar friend-avatar-lg">{initials(friend.name)}</span>
+          <div>
+            <h2>{friend.name}</h2>
+            <p className="hint">{friend.email}</p>
+          </div>
+        </div>
         {balances.length === 0 && <p className="pill">Settled up</p>}
         <ul className="overall-list">
           {balances.map((b) => (

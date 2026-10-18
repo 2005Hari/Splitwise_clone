@@ -1,4 +1,28 @@
+import {
+  Plus,
+  PencilSimple,
+  Trash,
+  UserPlus,
+  UserMinus,
+  ArrowsLeftRight,
+  CheckCircle,
+  XCircle,
+  ChatCircleText,
+  Receipt,
+} from '@phosphor-icons/react';
 import { formatMoney } from '../utils/money';
+
+const ACTIVITY_ICONS = {
+  expense_added: Plus,
+  expense_updated: PencilSimple,
+  expense_deleted: Trash,
+  member_joined: UserPlus,
+  member_left: UserMinus,
+  settlement_started: ArrowsLeftRight,
+  settlement_succeeded: CheckCircle,
+  settlement_failed: XCircle,
+  comment_added: ChatCircleText,
+};
 
 function describe(entry) {
   const { type, actor_name, payload } = entry;
@@ -39,15 +63,29 @@ function timeAgo(iso) {
 }
 
 export function ActivityFeed({ activity }) {
-  if (activity.length === 0) return <p className="hint">No activity yet.</p>;
+  if (activity.length === 0) {
+    return (
+      <div className="empty-state">
+        <Receipt size={32} weight="bold" className="empty-state-icon" />
+        <span className="empty-state-title">No activity yet</span>
+        <span className="hint">Expenses, payments and comments will show up here.</span>
+      </div>
+    );
+  }
   return (
     <ul className="activity-list">
-      {activity.map((entry) => (
-        <li key={entry.id} className="activity-row">
-          <span>{describe(entry)}</span>
-          <span className="hint">{timeAgo(entry.created_at)}</span>
-        </li>
-      ))}
+      {activity.map((entry) => {
+        const Icon = ACTIVITY_ICONS[entry.type] || Receipt;
+        return (
+          <li key={entry.id} className="activity-row">
+            <span className="activity-icon">
+              <Icon size={15} weight="bold" />
+            </span>
+            <span className="activity-text">{describe(entry)}</span>
+            <span className="activity-time hint">{timeAgo(entry.created_at)}</span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

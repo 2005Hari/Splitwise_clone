@@ -161,6 +161,7 @@ export function ExpenseForm({ groupId, members, categories, initialExpense, pref
           Amount
           <input
             type="number"
+            inputMode="decimal"
             min="0.01"
             step="0.01"
             value={amount}
@@ -191,13 +192,19 @@ export function ExpenseForm({ groupId, members, categories, initialExpense, pref
       </label>
       <label>
         Split
-        <select value={splitType} onChange={(e) => setSplitType(e.target.value)}>
+        <div className="segmented" role="group" aria-label="Split type">
           {Object.entries(SPLIT_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
+            <button
+              key={value}
+              type="button"
+              className={`segmented-option${splitType === value ? ' is-active' : ''}`}
+              aria-pressed={splitType === value}
+              onClick={() => setSplitType(value)}
+            >
               {label}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
       </label>
 
       <fieldset>
@@ -221,6 +228,7 @@ export function ExpenseForm({ groupId, members, categories, initialExpense, pref
               <input
                 className="split-input"
                 type="number"
+                inputMode="decimal"
                 min="0"
                 step="0.01"
                 value={r.exact}
@@ -232,6 +240,7 @@ export function ExpenseForm({ groupId, members, categories, initialExpense, pref
               <input
                 className="split-input"
                 type="number"
+                inputMode="decimal"
                 min="0"
                 max="100"
                 step="0.01"
@@ -244,6 +253,7 @@ export function ExpenseForm({ groupId, members, categories, initialExpense, pref
               <input
                 className="split-input"
                 type="number"
+                inputMode="numeric"
                 min="0"
                 step="1"
                 value={r.shares}
