@@ -64,6 +64,91 @@ function ExpenseComments({ groupId, expenseId }) {
   );
 }
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+function ExpenseReceipts({ groupId, expenseId }) {
+  const [receipts, setReceipts] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    const { receipts } = await api.get(`/api/groups/${groupId}/expenses/${expenseId}/receipts`);
+    setReceipts(receipts);
+  }, [groupId, expenseId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const onFileChosen = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      await api.upload(`/api/groups/${groupId}/expenses/${expenseId}/receipts`, formData);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const remove = async (receiptId) => {
+    if (!window.confirm('Remove this receipt?')) return;
+    await api.del(`/api/groups/${groupId}/expenses/${expenseId}/receipts/${receiptId}`);
+    await load();
+  };
+
+  if (receipts === null) return <p className="hint">Loading receipts…</p>;
+
+  return (
+    <div className="receipts">
+      {receipts.length === 0 && <p className="hint">No receipts attached.</p>}
+      <ul className="receipt-list">
+        {receipts.map((r) => (
+          <li key={r.id} className="receipt-item">
+            {r.content_type.startsWith('image/') ? (
+              <a
+                href={`${API_URL}/api/groups/${groupId}/expenses/${expenseId}/receipts/${r.id}/file`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <img
+                  className="receipt-thumb"
+                  src={`${API_URL}/api/groups/${groupId}/expenses/${expenseId}/receipts/${r.id}/file`}
+                  alt={r.original_name}
+                />
+              </a>
+            ) : (
+              <a
+                href={`${API_URL}/api/groups/${groupId}/expenses/${expenseId}/receipts/${r.id}/file`}
+                target="_blank"
+                rel="noreferrer"
+                className="receipt-file-link"
+              >
+                📄 {r.original_name}
+              </a>
+            )}
+            <button className="btn btn-ghost btn-sm receipt-remove" onClick={() => remove(r.id)}>
+              ✕
+            </button>
+          </li>
+        ))}
+      </ul>
+      <label className="btn btn-ghost btn-sm receipt-upload-btn">
+        {uploading ? 'Uploading…' : 'Attach a receipt'}
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,application/pdf" onChange={onFileChosen} disabled={uploading} hidden />
+      </label>
+      {error && <p className="hint hint-error">{error}</p>}
+    </div>
+  );
+}
+
 export function ExpenseList({ groupId, expenses, members, categories, currentUserId, onChanged }) {
   const [editingId, setEditingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
@@ -123,7 +208,9 @@ export function ExpenseList({ groupId, expenses, members, categories, currentUse
                     className="btn btn-ghost btn-sm"
                     onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
                   >
-                    {expandedId === e.id ? 'Hide' : `Comments${e.comment_count ? ` (${e.comment_count})` : ''}`}
+                    {expandedId === e.id
+                      ? 'Hide'
+                      : `Details${e.comment_count || e.receipt_count ? ` (${e.comment_count + e.receipt_count})` : ''}`}
                   </button>
                   <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(e.id)}>
                     Edit
@@ -137,7 +224,18 @@ export function ExpenseList({ groupId, expenses, members, categories, currentUse
                   </button>
                 </div>
               </div>
-              {expandedId === e.id && <ExpenseComments groupId={groupId} expenseId={e.id} />}
+              {expandedId === e.id && (
+                <div className="expense-details">
+                  <div>
+                    <h4>Receipts</h4>
+                    <ExpenseReceipts groupId={groupId} expenseId={e.id} />
+                  </div>
+                  <div>
+                    <h4>Comments</h4>
+                    <ExpenseComments groupId={groupId} expenseId={e.id} />
+                  </div>
+                </div>
+              )}
             </>
           )}
         </li>

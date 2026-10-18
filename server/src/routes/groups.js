@@ -6,8 +6,9 @@ import { HttpError } from '../middleware/errorHandler.js';
 import { requireAuth, requireGroupMember } from '../middleware/auth.js';
 import { logActivity } from '../services/activity.js';
 import { computeGroupBalances } from '../services/splitEngine.js';
-
-const SUPPORTED_CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AUD', 'CAD', 'SGD', 'AED'];
+import { SUPPORTED_CURRENCIES } from '../services/currencies.js';
+import { sendPushToUser } from '../services/webPush.js';
+import { sendEmail } from '../services/email.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -89,6 +90,19 @@ router.post(
       `INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, 'member')`
     ).run(req.groupId, user.id);
     logActivity(req.groupId, req.user.id, 'member_joined', { userId: user.id, name: user.name });
+
+    const groupName = db.prepare('SELECT name FROM groups WHERE id = ?').get(req.groupId).name;
+    sendPushToUser(user.id, {
+      title: 'Added to a group',
+      body: `${req.user.name} added you to "${groupName}"`,
+      tag: `group-${req.groupId}-joined`,
+    }).catch((err) => console.warn('push notify failed:', err.message));
+    sendEmail({
+      to: user.email,
+      subject: `You've been added to "${groupName}"`,
+      text: `${req.user.name} added you to the group "${groupName}" on Splitwise Clone. Sign in to see the shared expenses.`,
+    }).catch((err) => console.warn('email send failed:', err.message));
+
     res.status(201).json({ member: { ...user, role: 'member' } });
   })
 );

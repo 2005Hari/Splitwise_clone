@@ -12,8 +12,12 @@ import settlementRoutes from './routes/settlements.js';
 import webhookRoutes from './routes/webhook.js';
 import friendRoutes from './routes/friends.js';
 import overviewRoutes from './routes/overview.js';
+import receiptRoutes from './routes/receipts.js';
+import recurringRoutes from './routes/recurring.js';
+import pushRoutes from './routes/push.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { EXPENSE_CATEGORIES } from './services/categories.js';
+import { startRecurringExpenseScheduler } from './services/scheduler.js';
 
 const app = express();
 
@@ -39,8 +43,11 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/groups/:groupId/expenses', expenseRoutes);
 app.use('/api/groups/:groupId/balances', balanceRoutes);
 app.use('/api/groups/:groupId/settlements', settlementRoutes);
+app.use('/api/groups/:groupId/expenses/:expenseId/receipts', receiptRoutes);
+app.use('/api/groups/:groupId/recurring', recurringRoutes);
 app.use('/api/friends', friendRoutes);
 app.use('/api/overview', overviewRoutes);
+app.use('/api/push', pushRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -49,3 +56,7 @@ const port = process.env.PORT || 4000;
 app.listen(port, () => {
   console.log(`Splitwise-clone API listening on http://localhost:${port}`);
 });
+
+// In-process scheduler for recurring_expenses — see services/scheduler.js
+// for why this needs no external cron service.
+startRecurringExpenseScheduler();

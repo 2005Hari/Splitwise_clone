@@ -1,9 +1,10 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 async function request(path, options = {}) {
+  const isFormData = options.body instanceof FormData;
   const res = await fetch(`${API_URL}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers: { ...(isFormData ? {} : { 'Content-Type': 'application/json' }), ...options.headers },
     ...options,
   });
 
@@ -24,4 +25,6 @@ export const api = {
   post: (path, data) => request(path, { method: 'POST', body: JSON.stringify(data ?? {}) }),
   patch: (path, data) => request(path, { method: 'PATCH', body: JSON.stringify(data ?? {}) }),
   del: (path) => request(path, { method: 'DELETE' }),
+  // FormData body — browser sets the multipart Content-Type (with boundary) itself.
+  upload: (path, formData) => request(path, { method: 'POST', body: formData }),
 };

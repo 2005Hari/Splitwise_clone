@@ -4,19 +4,39 @@ import { api } from '../api/client';
 import { formatMoney, SUPPORTED_CURRENCIES } from '../utils/money';
 
 function OverallSummary({ overview }) {
+  const [targetCurrency, setTargetCurrency] = useState(null);
+  const [converted, setConverted] = useState(null);
+  const [converting, setConverting] = useState(false);
+
+  const balances = overview?.balances || [];
+  const currencies = [...new Set(balances.map((b) => b.currency))];
+  const multiCurrency = currencies.length > 1;
+
+  useEffect(() => {
+    if (!multiCurrency) return;
+    const target = targetCurrency || currencies[0];
+    setConverting(true);
+    api
+      .get(`/api/overview?in=${target}`)
+      .then((res) => setConverted(res.converted))
+      .finally(() => setConverting(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetCurrency, multiCurrency]);
+
   if (!overview) return null;
-  if (overview.balances.length === 0) {
+  if (balances.length === 0) {
     return (
       <div className="card overall-summary">
         <p className="hint">You're all settled up everywhere. 🎉</p>
       </div>
     );
   }
+
   return (
     <div className="card overall-summary">
       <h3>Overall</h3>
       <ul className="overall-list">
-        {overview.balances.map((b) => (
+        {balances.map((b) => (
           <li key={b.currency} className={b.netCents > 0 ? 'overall-positive' : 'overall-negative'}>
             {b.netCents > 0
               ? `You are owed ${formatMoney(b.netCents, b.currency)}`
@@ -24,6 +44,29 @@ function OverallSummary({ overview }) {
           </li>
         ))}
       </ul>
+
+      {multiCurrency && (
+        <div className="fx-convert">
+          <label>
+            Combine into
+            <select value={targetCurrency || currencies[0]} onChange={(e) => setTargetCurrency(e.target.value)}>
+              {SUPPORTED_CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+          {converting && <span className="hint">Converting…</span>}
+          {!converting && converted && (
+            <p className={converted.totalCents >= 0 ? 'overall-positive fx-total' : 'overall-negative fx-total'}>
+              ≈ {formatMoney(Math.abs(converted.totalCents), converted.currency)}
+              {converted.totalCents >= 0 ? ' owed to you' : ' you owe'}
+              <span className="hint fx-note"> (live rates, approximate)</span>
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -6,7 +6,9 @@ function describe(entry) {
     case 'expense_added':
       return `${actor_name} added "${payload.description}" (${formatMoney(payload.amountCents, payload.currency)})`;
     case 'expense_updated':
-      return `${actor_name} edited "${payload.description}"`;
+      return payload.note
+        ? `${actor_name} ${payload.note} on "${payload.description}"`
+        : `${actor_name} edited "${payload.description}"`;
     case 'expense_deleted':
       return `${actor_name} deleted "${payload.description}" (${formatMoney(payload.amountCents, 'INR')})`;
     case 'member_joined':

@@ -7,10 +7,13 @@ Delivery payment gateway.
 
 **Features:** groups and direct (non-group) expenses with friends · equal,
 exact-amount, percentage and shares/ratio splits · expense editing, soft
-deletion and comments · categories · a per-group activity feed · cross-group
-Friends balances (aggregated across every shared group, bucketed by
-currency) · a dashboard "you owe / you're owed" overall summary · leave or
-remove a group member · settle up for real over UPI (YouPI-PG, in-app,
+deletion, comments and photo/PDF receipts · categories · recurring expenses
+(rent, subscriptions) · a per-group activity feed · browser push
+notifications and email, both optional and self-hosted (no third-party
+account) · cross-group Friends balances (aggregated across every shared
+group, bucketed by currency, with a live-FX "combined, approximate" total)
+· a dashboard "you owe / you're owed" overall summary · leave or remove a
+group member · settle up for real over UPI (YouPI-PG, in-app,
 webhook-confirmed) or record a cash payment instantly, same as Splitwise's
 own "mark as paid".
 
@@ -96,9 +99,20 @@ cp .env.example .env
 npm run dev             # http://localhost:5173
 ```
 
-Everything works end to end — accounts, groups, expenses, balances — without
-YouPI-PG running. Only the **Settle up** button needs a live YouPI-PG
-instance and its three env vars.
+Everything works end to end — accounts, groups, expenses, balances,
+receipts, recurring expenses, push notifications — without YouPI-PG running
+or any other setup. Three things are optional, each with a graceful
+no-setup default:
+
+- **Settle up via UPI** needs a live YouPI-PG instance and its three env
+  vars (above) — cash settlements work with zero setup either way.
+- **Push notifications** work immediately — a VAPID keypair is generated on
+  first boot and cached to `server/data/vapid-keys.json`. Set
+  `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` in `.env` only if you want it
+  stable across redeploys (changing it invalidates existing subscriptions).
+- **Email** no-ops (logs instead of sending) until you set `SMTP_HOST` /
+  `SMTP_USER` / `SMTP_PASS` to your own mail server or provider's SMTP
+  endpoint.
 
 ## Notes
 

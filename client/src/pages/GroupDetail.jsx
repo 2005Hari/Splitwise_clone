@@ -6,6 +6,7 @@ import { useCategories } from '../hooks/useCategories';
 import { ExpenseList } from '../components/ExpenseList';
 import { BalanceList } from '../components/BalanceList';
 import { ActivityFeed } from '../components/ActivityFeed';
+import { RecurringExpenses } from '../components/RecurringExpenses';
 import { AddExpense } from './AddExpense';
 
 export function GroupDetail() {
@@ -135,6 +136,8 @@ export function GroupDetail() {
       </div>
 
       <AddExpense groupId={groupId} members={members} onAdded={loadAll} />
+
+      <RecurringExpenses groupId={groupId} members={members} currency={group.currency} onFired={loadAll} />
 
       <div className="card">
         <h3>Activity</h3>

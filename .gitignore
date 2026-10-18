@@ -1,10 +1,9 @@
 node_modules/
 .env
 .env.local
-server/data/*.sqlite
-server/data/*.sqlite-journal
-server/data/*.sqlite-wal
-server/data/*.sqlite-shm
+server/data/*.sqlite*
+server/data/uploads/
+server/data/vapid-keys.json
 client/dist/
 *.log
 .DS_Store

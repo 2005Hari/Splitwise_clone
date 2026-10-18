@@ -78,9 +78,54 @@ asked for. Same rules apply:
       by code review alone — see the architecture note on group vs. friend
       balance for the corrected formula.
 
+## Third pass: receipts, recurring, notifications, live FX
+
+All four of the remaining flagged gaps were closeable **without signing up
+for any external account** (the one rule this project holds hardest to), so
+they're now built:
+
+- [x] **Receipt/photo uploads** (`services/fileStorage.js`,
+      `routes/receipts.js`) — local disk (`server/data/uploads`), never a
+      public static folder: every read goes through an authenticated,
+      group-membership-checked route. JPEG/PNG/WebP/GIF/PDF, 10MB cap.
+- [x] **Recurring expenses** (`services/scheduler.js`, `routes/recurring.js`)
+      — an in-process `setInterval`, not an external cron service (the
+      server already has to be running for the app to work at all, so this
+      adds no new deployment dependency). Properly catches up every missed
+      occurrence if the server was down, capped at 366 to avoid a runaway
+      backfill. A template whose split no longer resolves (a participant
+      left the group) pauses itself with a logged reason instead of
+      retry-looping forever or failing silently.
+- [x] **Web Push notifications** (`services/webPush.js`, `routes/push.js`,
+      `client/public/sw.js`) — standard browser Push API with a
+      self-generated VAPID keypair (auto-created on first boot if not in
+      `.env`, cached to `data/vapid-keys.json`). No push-notification SaaS
+      account anywhere in this path. Fires on a new expense, a comment, and
+      a confirmed settlement — never to the person who triggered it.
+- [x] **Live currency conversion** (`services/fxRates.js`) — Frankfurter
+      (ECB reference rates), free and keyless. Used only for one optional
+      "combined, approximate" total on the dashboard when a user's balances
+      span more than one currency; the exact per-currency figures remain
+      authoritative everywhere, and a failed rate lookup is reported as
+      "unconverted," never silently folded into the total.
+- [x] **Email** (`services/email.js`) — plain SMTP, same pattern as
+      everything else: the user supplies their own provider's credentials in
+      `.env`; unset, it logs and no-ops rather than erroring. Verified the
+      actual send path (not just the no-op) against a disposable Ethereal
+      test account — but **not** against a real SMTP server from inside this
+      build environment: its outbound network only tunnels HTTP/HTTPS, so a
+      raw SMTP connection on port 587 timed out here. That's a constraint of
+      *this* sandbox, not the code; a normal server environment reaches SMTP
+      directly.
+
+`routes/expenses.js`'s create logic moved into `services/expenseCreation.js`
+so the recurring-expense scheduler replays a charge through the *exact same*
+validated split engine a one-off expense uses — no parallel, potentially
+drifting implementation.
+
 ## What's intentionally not built
-Push/email notifications, receipt/photo attachments, recurring expenses,
-native mobile apps, live currency conversion between groups (each group has
-one currency; cross-group aggregates bucket by currency instead of
-converting). Flagged here rather than silently missing from `features.csv`
-so `/replica-diff` has an honest baseline to score against.
+Native mobile apps — meaningfully more scope than a backend/frontend change
+(a separate React Native or Capacitor project, device testing, app store
+accounts the user would hold, not this project). Flagged here rather than
+silently missing from `features.csv` so `/replica-diff` has an honest
+baseline to score against.

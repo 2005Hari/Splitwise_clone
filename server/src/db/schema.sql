@@ -129,3 +129,58 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   order_id     TEXT,
   received_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+
+-- A photo or PDF attached to an expense. Stored on local disk
+-- (server/data/uploads/<uuid>.<ext>); this row is the only public record of
+-- it, served through an authenticated, group-membership-checked route —
+-- never a world-readable static folder.
+CREATE TABLE IF NOT EXISTS expense_receipts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  expense_id    INTEGER NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  uploaded_by   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  storage_key   TEXT NOT NULL UNIQUE,
+  original_name TEXT NOT NULL,
+  content_type  TEXT NOT NULL,
+  size_bytes    INTEGER NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_receipts_expense ON expense_receipts(expense_id);
+
+-- A template the scheduler (services/scheduler.js) replays into a real
+-- expense on each due date. split_config holds whatever resolveSplit() in
+-- routes/expenses.js needs for the chosen split_type (participantIds,
+-- exactShares, percentages or shareWeights) so a recurring charge goes
+-- through the exact same validated split logic as a one-off expense.
+CREATE TABLE IF NOT EXISTS recurring_expenses (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id      INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  description   TEXT NOT NULL,
+  amount_cents  INTEGER NOT NULL CHECK (amount_cents > 0),
+  category      TEXT NOT NULL DEFAULT 'general',
+  paid_by       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_by    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  split_type    TEXT NOT NULL CHECK (split_type IN ('equal', 'exact', 'percentage', 'shares')),
+  split_config  TEXT NOT NULL,
+  frequency     TEXT NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly')),
+  active        INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+  next_run_at   TEXT NOT NULL,
+  last_run_at   TEXT,
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_recurring_due ON recurring_expenses(active, next_run_at);
+CREATE INDEX IF NOT EXISTS idx_recurring_group ON recurring_expenses(group_id);
+
+-- One row per browser the user has granted Web Push permission in. No
+-- external push service account is involved — the Push API's VAPID scheme
+-- lets any server send a user's own browser a notification with just a
+-- self-generated keypair (services/webPush.js), the same keypair every
+-- subscription on this server is signed with.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint    TEXT NOT NULL UNIQUE,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);

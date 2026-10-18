@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // rebuild-the-table migrations, an out-of-date dev database is safely
 // rotated aside (renamed, never deleted) and recreated fresh from
 // schema.sql. Bump it again the next time schema.sql changes shape.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const dbPath = process.env.SQLITE_DB_PATH || './data/splitwise.sqlite';
 const resolvedPath = path.resolve(process.cwd(), dbPath);

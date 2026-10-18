@@ -3,13 +3,18 @@ import db from '../db/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { listCounterparties, friendBalanceByCurrency } from '../services/splitEngine.js';
+import { convertBuckets } from '../services/fxRates.js';
+import { SUPPORTED_CURRENCIES } from '../services/currencies.js';
 
 const router = Router();
 router.use(requireAuth);
 
 // "You are owed / you owe" across absolutely everything — every group and
 // every direct friend — bucketed by currency so a USD trip and an INR
-// dinner are never silently summed into one misleading number.
+// dinner are never silently summed into one misleading number. Pass
+// ?in=<currency> to also get one approximate combined total, converted at
+// live rates (see services/fxRates.js) — the per-currency buckets stay the
+// exact, authoritative figures either way.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -28,13 +33,17 @@ router.get(
       )
       .get(req.user.id).n;
 
-    res.json({
-      balances: [...byCurrency.entries()]
-        .filter(([, cents]) => cents !== 0)
-        .map(([currency, netCents]) => ({ currency, netCents })),
-      groupCount,
-      friendCount: counterparties.length,
-    });
+    const balances = [...byCurrency.entries()]
+      .filter(([, cents]) => cents !== 0)
+      .map(([currency, netCents]) => ({ currency, netCents }));
+
+    let converted = null;
+    const targetCurrency = typeof req.query.in === 'string' ? req.query.in.toUpperCase() : null;
+    if (targetCurrency && SUPPORTED_CURRENCIES.includes(targetCurrency) && balances.length > 0) {
+      converted = await convertBuckets(balances, targetCurrency);
+    }
+
+    res.json({ balances, converted, groupCount, friendCount: counterparties.length });
   })
 );
 

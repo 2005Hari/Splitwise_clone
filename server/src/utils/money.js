@@ -13,3 +13,12 @@ export function rupeeStringToCents(amount) {
   }
   return value;
 }
+
+const SYMBOLS = { INR: '₹', USD: '$', EUR: '€', GBP: '£', AUD: 'A$', CAD: 'C$', SGD: 'S$', AED: 'AED ' };
+
+// For human-readable text (push notification bodies, emails) — the API
+// itself always returns raw cents + a currency code and lets the client format.
+export function formatMoney(cents, currency = 'INR') {
+  const symbol = SYMBOLS[currency] || `${currency} `;
+  return `${symbol}${(cents / 100).toFixed(2)}`;
+}

@@ -5,9 +5,11 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { requireAuth, requireGroupMember } from '../middleware/auth.js';
 import { createYoupiPayment } from '../services/youpiClient.js';
-import { centsToRupeeString } from '../utils/money.js';
+import { centsToRupeeString, formatMoney } from '../utils/money.js';
 import { computeGroupBalances } from '../services/splitEngine.js';
 import { logActivity } from '../services/activity.js';
+import { sendPushToUser } from '../services/webPush.js';
+import { sendEmail } from '../services/email.js';
 
 const router = Router({ mergeParams: true });
 router.use(requireAuth, requireGroupMember);
@@ -115,6 +117,16 @@ router.post(
         currency: groupCurrency,
         source: 'cash',
       });
+      sendPushToUser(payeeId, {
+        title: 'Payment received',
+        body: `${req.user.name} paid you ${formatMoney(amountCents, groupCurrency)} in cash`,
+        tag: `settlement-${settlementId}`,
+      }).catch((err) => console.warn('push notify failed:', err.message));
+      sendEmail({
+        to: payee.email,
+        subject: `${req.user.name} paid you ${formatMoney(amountCents, groupCurrency)}`,
+        text: `${req.user.name} recorded a cash payment of ${formatMoney(amountCents, groupCurrency)} to you. Sign in to see the updated balance.`,
+      }).catch((err) => console.warn('email send failed:', err.message));
 
       return res.status(201).json({
         settlement: {

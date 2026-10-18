@@ -3,6 +3,9 @@ import express from 'express';
 import db from '../db/index.js';
 import { verifyYoupiSignature } from '../services/webhookVerify.js';
 import { logActivity } from '../services/activity.js';
+import { sendPushToUser } from '../services/webPush.js';
+import { sendEmail } from '../services/email.js';
+import { formatMoney } from '../utils/money.js';
 
 const router = Router();
 
@@ -64,6 +67,24 @@ router.post('/youpi', express.raw({ type: 'application/json' }), (req, res) => {
           status: payload.event,
         }
       );
+
+      if (payload.event === 'SUCCESS') {
+        const payer = db.prepare('SELECT name FROM users WHERE id = ?').get(settlement.payer_id);
+        const payee = db.prepare('SELECT email FROM users WHERE id = ?').get(settlement.payee_id);
+        const amountText = formatMoney(settlement.amount_cents, settlement.currency);
+        sendPushToUser(settlement.payee_id, {
+          title: 'Payment received',
+          body: `${payer?.name || 'Someone'} paid you ${amountText} via UPI`,
+          tag: `settlement-${settlement.id}`,
+        }).catch((err) => console.warn('push notify failed:', err.message));
+        if (payee) {
+          sendEmail({
+            to: payee.email,
+            subject: `${payer?.name || 'Someone'} paid you ${amountText}`,
+            text: `${payer?.name || 'Someone'} paid you ${amountText} via UPI (UTR ${payload.utr || 'n/a'}). Sign in to see the updated balance.`,
+          }).catch((err) => console.warn('email send failed:', err.message));
+        }
+      }
     }
   }
 

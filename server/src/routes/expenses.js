@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { ZodError } from 'zod';
 import db from '../db/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { requireAuth, requireGroupMember } from '../middleware/auth.js';
-import { equalSplit, proportionalSplit } from '../services/splitEngine.js';
 import { logActivity } from '../services/activity.js';
-import { CATEGORY_IDS } from '../services/categories.js';
+import { expenseSchema, resolveSplit, memberIdSet, createExpense } from '../services/expenseCreation.js';
+import { notifyGroupMembers } from '../services/webPush.js';
 
 const router = Router({ mergeParams: true });
 router.use(requireAuth, requireGroupMember);
@@ -34,10 +35,14 @@ function loadExpenseList(groupId) {
   const commentCountStmt = db.prepare(
     `SELECT COUNT(*) AS n FROM expense_comments WHERE expense_id = ?`
   );
+  const receiptCountStmt = db.prepare(
+    `SELECT COUNT(*) AS n FROM expense_receipts WHERE expense_id = ?`
+  );
   for (const expense of expenses) {
     expense.shares = shareStmt.all(expense.id);
     expense.split_meta = expense.split_meta ? JSON.parse(expense.split_meta) : null;
     expense.comment_count = commentCountStmt.get(expense.id).n;
+    expense.receipt_count = receiptCountStmt.get(expense.id).n;
   }
   return expenses;
 }
@@ -49,138 +54,24 @@ router.get(
   })
 );
 
-const baseSchema = z.object({
-  description: z.string().trim().min(1).max(200),
-  amountCents: z.number().int().positive(),
-  paidBy: z.number().int().positive(),
-  category: z.enum(CATEGORY_IDS).default('general'),
-});
-
-const equalExpenseSchema = baseSchema.extend({
-  splitType: z.literal('equal'),
-  participantIds: z.array(z.number().int().positive()).min(1),
-});
-
-const exactExpenseSchema = baseSchema.extend({
-  splitType: z.literal('exact'),
-  exactShares: z
-    .array(z.object({ userId: z.number().int().positive(), shareCents: z.number().int().nonnegative() }))
-    .min(1),
-});
-
-const percentageExpenseSchema = baseSchema.extend({
-  splitType: z.literal('percentage'),
-  percentages: z
-    .array(z.object({ userId: z.number().int().positive(), percent: z.number().positive().max(100) }))
-    .min(1),
-});
-
-const sharesExpenseSchema = baseSchema.extend({
-  splitType: z.literal('shares'),
-  shareWeights: z
-    .array(z.object({ userId: z.number().int().positive(), shares: z.number().positive() }))
-    .min(1),
-});
-
-const expenseSchema = z.discriminatedUnion('splitType', [
-  equalExpenseSchema,
-  exactExpenseSchema,
-  percentageExpenseSchema,
-  sharesExpenseSchema,
-]);
-
-// Turns a validated request body into { shares, splitMeta }, checking every
-// referenced user is actually a member of the group.
-function resolveSplit(input, memberIds) {
-  const checkMember = (id) => {
-    if (!memberIds.has(id)) throw new HttpError(400, `User ${id} is not a member of this group`);
-  };
-
-  if (input.splitType === 'equal') {
-    input.participantIds.forEach(checkMember);
-    return { shares: equalSplit(input.amountCents, input.participantIds), splitMeta: null };
-  }
-
-  if (input.splitType === 'exact') {
-    input.exactShares.forEach((s) => checkMember(s.userId));
-    const sum = input.exactShares.reduce((acc, s) => acc + s.shareCents, 0);
-    if (sum !== input.amountCents) {
-      throw new HttpError(400, `Shares sum to ${sum} but amount is ${input.amountCents}`);
-    }
-    return { shares: input.exactShares, splitMeta: { type: 'exact' } };
-  }
-
-  if (input.splitType === 'percentage') {
-    input.percentages.forEach((p) => checkMember(p.userId));
-    const total = input.percentages.reduce((acc, p) => acc + p.percent, 0);
-    if (Math.abs(total - 100) > 0.01) {
-      throw new HttpError(400, `Percentages sum to ${total.toFixed(2)}, not 100`);
-    }
-    const shares = proportionalSplit(
-      input.amountCents,
-      input.percentages.map((p) => ({ userId: p.userId, weight: p.percent }))
-    );
-    return { shares, splitMeta: { type: 'percentage', values: input.percentages } };
-  }
-
-  // shares (ratio)
-  input.shareWeights.forEach((w) => checkMember(w.userId));
-  const shares = proportionalSplit(
-    input.amountCents,
-    input.shareWeights.map((w) => ({ userId: w.userId, weight: w.shares }))
-  );
-  return { shares, splitMeta: { type: 'shares', values: input.shareWeights } };
-}
-
-function memberIdSet(groupId) {
-  return new Set(
-    db.prepare('SELECT user_id FROM group_members WHERE group_id = ?').all(groupId).map((r) => r.user_id)
-  );
+// createExpense() throws a plain Error for a bad split/member — translate
+// that into the 400 an API client expects, same as a zod validation error.
+function asHttpBadRequest(err) {
+  if (err instanceof ZodError) return new HttpError(400, 'Invalid request');
+  return new HttpError(400, err.message);
 }
 
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const input = expenseSchema.parse(req.body);
-    const memberIds = memberIdSet(req.groupId);
-    if (!memberIds.has(input.paidBy)) throw new HttpError(400, 'paidBy must be a member of this group');
-
-    const { shares, splitMeta } = resolveSplit(input, memberIds);
-    const groupCurrency = db.prepare('SELECT currency FROM groups WHERE id = ?').get(req.groupId).currency;
-
-    const tx = db.transaction(() => {
-      const { lastInsertRowid: expenseId } = db
-        .prepare(
-          `INSERT INTO expenses (group_id, description, amount_cents, currency, category, paid_by, created_by, split_type, split_meta)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .run(
-          req.groupId,
-          input.description,
-          input.amountCents,
-          groupCurrency,
-          input.category,
-          input.paidBy,
-          req.user.id,
-          input.splitType,
-          splitMeta ? JSON.stringify(splitMeta) : null
-        );
-
-      const insertShare = db.prepare(
-        'INSERT INTO expense_shares (expense_id, user_id, share_cents) VALUES (?, ?, ?)'
-      );
-      for (const s of shares) insertShare.run(expenseId, s.userId, s.shareCents);
-      return expenseId;
-    });
-
-    const expenseId = tx();
-    logActivity(req.groupId, req.user.id, 'expense_added', {
-      expenseId,
-      description: input.description,
-      amountCents: input.amountCents,
-      currency: groupCurrency,
-    });
-    res.status(201).json({ expense: { id: expenseId, ...input, currency: groupCurrency, shares, splitMeta } });
+    let result;
+    try {
+      result = createExpense(req.groupId, req.user.id, req.body);
+    } catch (err) {
+      throw asHttpBadRequest(err);
+    }
+    const { expenseId, input, shares, splitMeta, currency } = result;
+    res.status(201).json({ expense: { id: expenseId, ...input, currency, shares, splitMeta } });
   })
 );
 
@@ -196,11 +87,16 @@ router.patch(
   '/:expenseId',
   asyncHandler(async (req, res) => {
     const existing = loadOwnedExpense(req.params.expenseId, req.groupId);
-    const input = expenseSchema.parse(req.body);
-    const memberIds = memberIdSet(req.groupId);
-    if (!memberIds.has(input.paidBy)) throw new HttpError(400, 'paidBy must be a member of this group');
 
-    const { shares, splitMeta } = resolveSplit(input, memberIds);
+    let input, shares, splitMeta;
+    try {
+      input = expenseSchema.parse(req.body);
+      const memberIds = memberIdSet(req.groupId);
+      if (!memberIds.has(input.paidBy)) throw new Error('paidBy must be a member of this group');
+      ({ shares, splitMeta } = resolveSplit(input, memberIds));
+    } catch (err) {
+      throw asHttpBadRequest(err);
+    }
 
     const tx = db.transaction(() => {
       db.prepare(
@@ -280,6 +176,11 @@ router.post(
       description: expense.description,
       preview: body.slice(0, 80),
     });
+    notifyGroupMembers(req.groupId, req.user.id, {
+      title: `Comment on "${expense.description}"`,
+      body: `${req.user.name}: ${body.slice(0, 120)}`,
+      tag: `expense-${expense.id}-comments`,
+    }).catch((err) => console.warn('push notify failed:', err.message));
 
     const comment = db
       .prepare(
