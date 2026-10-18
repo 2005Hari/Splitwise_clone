@@ -82,9 +82,44 @@ in their own YouPI-PG merchant-admin.
 1. ✅ Vertical slice: register → create group → add expense → see balance.
 2. ✅ Must-haves: multi-member groups, equal + custom splits, debt
    simplification, invite by email.
-3. ✅ Payments: YouPI-PG settle-up, in-app checkout, signed webhook.
-4. Should-haves (not built yet): expense editing/deletion, per-group currency,
-   activity feed, email notifications, OAuth login.
+3. ✅ Payments: YouPI-PG settle-up (UPI, in-app checkout, signed webhook) plus
+   a cash/manual "mark as paid" path, same as Splitwise's own fallback.
+4. ✅ Should-haves: expense editing/deletion (soft delete, audit trail kept),
+   split by percentage and by shares/ratio (plus the original equal/exact),
+   per-group currency, categories, comments on expenses, a per-group activity
+   feed, cross-group Friends balances (aggregated pairwise, bucketed by
+   currency, with a per-group breakdown), a dashboard "overall" summary,
+   leave/remove group member.
+5. Not built: email/push notifications, receipt photo uploads, recurring
+   expenses, native mobile apps, live currency conversion (each group has one
+   currency; the Friends/Overview aggregates bucket rather than convert
+   between currencies). These need either external services the user must
+   supply their own keys for (email, file storage) or meaningfully more
+   scope (schedulers, mobile builds) — flagged here rather than silently
+   missing from `features.csv`.
+
+## A correctness note: group balance vs. friend balance
+
+Two different, both-correct views of the same ledger live in this app, and
+they are **not** expected to match person-by-person, only in aggregate:
+
+- **Group balance** (`computeGroupBalances`): a user's single net position
+  in one group, after every expense and settlement in that group.
+- **Friend balance** (`friendBalanceByCurrency` / `pairwiseGroupBalance`):
+  the *direct* running total between exactly two people, across every
+  expense and settlement they've personally been on either side of, in any
+  group.
+
+Settling a *simplified* suggested transfer (minimum-payments graph) can
+route money through someone with no prior direct expense, which moves that
+pair's direct balance without changing the group's overall shape. The two
+views always reconcile once you sum one person's friend balances across
+everyone — it should equal their own group/overall net — but a single
+pairwise line is not required to mirror the group summary, by design.
+Settlement validation (`requireActualDebt` in `routes/settlements.js`)
+deliberately checks the **group-level** net, not a direct pairwise balance,
+so it never rejects the exact transfer the "suggested payments" UI just
+proposed.
 
 Next step per the skill: `/replica-test` (write a test plan and Playwright
 specs against the flows above) before extending further.

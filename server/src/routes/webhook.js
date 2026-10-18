@@ -2,6 +2,7 @@ import { Router } from 'express';
 import express from 'express';
 import db from '../db/index.js';
 import { verifyYoupiSignature } from '../services/webhookVerify.js';
+import { logActivity } from '../services/activity.js';
 
 const router = Router();
 
@@ -37,7 +38,7 @@ router.post('/youpi', express.raw({ type: 'application/json' }), (req, res) => {
   }
 
   const settlement = db
-    .prepare('SELECT id, status FROM settlements WHERE youpi_order_id = ?')
+    .prepare('SELECT id, group_id, payer_id, payee_id, amount_cents, currency, status FROM settlements WHERE youpi_order_id = ?')
     .get(payload.orderId);
 
   if (settlement && ['SUCCESS', 'FAILED', 'EXPIRED', 'CANCELLED'].includes(payload.event)) {
@@ -49,6 +50,20 @@ router.post('/youpi', express.raw({ type: 'application/json' }), (req, res) => {
              completed_at = CASE WHEN ? = 'SUCCESS' THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE completed_at END
          WHERE id = ?`
       ).run(payload.event, payload.utr || null, payload.method || null, payload.paymentId || null, payload.event, settlement.id);
+
+      logActivity(
+        settlement.group_id,
+        settlement.payer_id,
+        payload.event === 'SUCCESS' ? 'settlement_succeeded' : 'settlement_failed',
+        {
+          settlementId: settlement.id,
+          payeeId: settlement.payee_id,
+          amountCents: settlement.amount_cents,
+          currency: settlement.currency,
+          source: 'youpi',
+          status: payload.event,
+        }
+      );
     }
   }
 

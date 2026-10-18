@@ -12,6 +12,8 @@ export function Navbar() {
       </Link>
       {user && (
         <nav className="navbar-right">
+          <Link to="/" className="nav-link">Dashboard</Link>
+          <Link to="/friends" className="nav-link">Friends</Link>
           <span className="navbar-user">{user.name}</span>
           <button
             className="btn btn-ghost btn-sm"

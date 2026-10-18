@@ -1,10 +1,7 @@
 import { SettleUpButton } from './SettleUpButton';
+import { formatMoney } from '../utils/money';
 
-function formatRupees(cents) {
-  return `₹${(Math.abs(cents) / 100).toFixed(2)}`;
-}
-
-export function BalanceList({ groupId, currentUserId, balances, transfers, onSettled }) {
+export function BalanceList({ groupId, currentUserId, currency, balances, transfers, onSettled }) {
   return (
     <div className="card">
       <h3>Balances</h3>
@@ -13,8 +10,8 @@ export function BalanceList({ groupId, currentUserId, balances, transfers, onSet
           <li key={b.id} className="balance-row">
             <span>{b.id === currentUserId ? `${b.name} (you)` : b.name}</span>
             {b.netCents === 0 && <span className="pill">settled up</span>}
-            {b.netCents > 0 && <span className="pill pill-success">gets back {formatRupees(b.netCents)}</span>}
-            {b.netCents < 0 && <span className="pill pill-danger">owes {formatRupees(b.netCents)}</span>}
+            {b.netCents > 0 && <span className="pill pill-success">gets back {formatMoney(b.netCents, currency)}</span>}
+            {b.netCents < 0 && <span className="pill pill-danger">owes {formatMoney(-b.netCents, currency)}</span>}
           </li>
         ))}
       </ul>
@@ -25,10 +22,10 @@ export function BalanceList({ groupId, currentUserId, balances, transfers, onSet
         {transfers.map((t) => (
           <li key={`${t.fromUserId}-${t.toUserId}`} className="transfer-row">
             <span>
-              <strong>{t.fromName}</strong> owes <strong>{t.toName}</strong> {formatRupees(t.amountCents)}
+              <strong>{t.fromName}</strong> owes <strong>{t.toName}</strong> {formatMoney(t.amountCents, currency)}
             </span>
             {t.fromUserId === currentUserId ? (
-              <SettleUpButton groupId={groupId} transfer={t} onSettled={onSettled} />
+              <SettleUpButton groupId={groupId} transfer={t} currency={currency} onSettled={onSettled} />
             ) : (
               <span className="hint">waiting on {t.fromName}</span>
             )}

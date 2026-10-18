@@ -10,7 +10,10 @@ import expenseRoutes from './routes/expenses.js';
 import balanceRoutes from './routes/balances.js';
 import settlementRoutes from './routes/settlements.js';
 import webhookRoutes from './routes/webhook.js';
+import friendRoutes from './routes/friends.js';
+import overviewRoutes from './routes/overview.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { EXPENSE_CATEGORIES } from './services/categories.js';
 
 const app = express();
 
@@ -30,11 +33,14 @@ app.use('/api/payments/webhook', webhookRoutes);
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.get('/api/categories', (req, res) => res.json({ categories: EXPENSE_CATEGORIES }));
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/groups/:groupId/expenses', expenseRoutes);
 app.use('/api/groups/:groupId/balances', balanceRoutes);
 app.use('/api/groups/:groupId/settlements', settlementRoutes);
+app.use('/api/friends', friendRoutes);
+app.use('/api/overview', overviewRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

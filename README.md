@@ -1,10 +1,18 @@
 # Splitwise clone, with YouPI-PG settle-up payments
 
-A clean-room Splitwise-style expense splitter — groups, shared expenses,
-equal/custom splits, and who-owes-whom balances — plus one thing Splitwise
+A clean-room Splitwise-style expense splitter — plus one thing Splitwise
 itself doesn't do: an **in-app "Settle up" payment**, wired to
 [YouPI-PG](https://github.com/youpi-pg/YouPI-PG), a self-hosted UPI/Cash-on-
 Delivery payment gateway.
+
+**Features:** groups and direct (non-group) expenses with friends · equal,
+exact-amount, percentage and shares/ratio splits · expense editing, soft
+deletion and comments · categories · a per-group activity feed · cross-group
+Friends balances (aggregated across every shared group, bucketed by
+currency) · a dashboard "you owe / you're owed" overall summary · leave or
+remove a group member · settle up for real over UPI (YouPI-PG, in-app,
+webhook-confirmed) or record a cash payment instantly, same as Splitwise's
+own "mark as paid".
 
 It rebuilds the *features and flow* of a Splitwise-style app, clean-room —
 not Splitwise's code, name, logo, or content. See `replica/architecture.md`

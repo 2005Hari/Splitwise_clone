@@ -54,7 +54,33 @@ asked for. Same rules apply:
 - [ ] Rate limiting on auth routes — not added yet; do this before any public deploy.
 - [ ] `npm audit` run on real dependency installs — run it once `npm install` has actually been done (this environment couldn't reach the npm registry to install and audit).
 
+## Second pass: expenses, settlements, friends
+
+- [x] Expense edit/delete — any group member may edit or delete (matches
+      Splitwise's own permission model); delete is soft (`deleted_at`), so
+      comments and activity history survive and nothing is destroyed.
+- [x] Split by percentage and by shares/ratio, in addition to equal/exact —
+      server-validated (percentages must sum to 100 within 0.01; shares just
+      need to be positive), using the largest-remainder method so split
+      cents always sum exactly to the expense total.
+- [x] Cash ("mark as paid") settlements — immediately `SUCCESS`, no gateway
+      involved, for when money changed hands outside the app; same
+      debt-direction validation as a UPI settlement (see the architecture
+      note on group vs. friend balance for exactly what's validated and why).
+- [x] Comments, a per-group activity feed, member leave/remove (blocked
+      while the person has a nonzero balance, so a debt never loses its
+      owner), cross-group Friends balances, a dashboard overall summary.
+- [x] Found and fixed during testing (not left for the user to discover):
+      the settlement-direction and friend-balance math had the sign of the
+      "already paid" settlement terms inverted, which could both wrongly
+      block a legitimate settlement and wrongly allow an already-settled
+      debtor to keep paying. Caught by driving the real app end to end, not
+      by code review alone — see the architecture note on group vs. friend
+      balance for the corrected formula.
+
 ## What's intentionally not built
-Expense editing/deletion, group removal, push/email notifications, receipts/
-attachments, multi-currency. Flagged here rather than silently missing from
-`features.csv` so `/replica-diff` has an honest baseline to score against.
+Push/email notifications, receipt/photo attachments, recurring expenses,
+native mobile apps, live currency conversion between groups (each group has
+one currency; cross-group aggregates bucket by currency instead of
+converting). Flagged here rather than silently missing from `features.csv`
+so `/replica-diff` has an honest baseline to score against.
