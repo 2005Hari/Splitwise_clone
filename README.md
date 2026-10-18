@@ -86,15 +86,16 @@ clear `503` instead of a broken checkout.
 ## AI receipt scanning
 
 Tap **Scan a receipt** on the Add Expense form, photograph (or pick) a
-restaurant/hotel/shop bill, and the Claude API (vision, structured outputs —
-`server/src/services/receiptAI.js`) reads it and pre-fills description,
-amount and category. It never creates the expense itself: the form still
-opens with everyone checked for an equal split (so accepting the defaults
-is "just create it"), or you can change who's in before saving (the
-"ask which friend to add" case) — either way it's the normal, fully
-reviewable Add Expense form, just started from a photo instead of a blank
-page. Once you save, the same photo is automatically attached to the new
-expense as its receipt, reusing the receipts feature above.
+restaurant/hotel/shop bill, and NVIDIA NIM's vision API (Llama 3.2 90B
+Vision by default — `server/src/services/receiptAI.js`) reads it and
+pre-fills description, amount and category. It never creates the expense
+itself: the form still opens with everyone checked for an equal split (so
+accepting the defaults is "just create it"), or you can change who's in
+before saving (the "ask which friend to add" case) — either way it's the
+normal, fully reviewable Add Expense form, just started from a photo
+instead of a blank page. Once you save, the same photo is automatically
+attached to the new expense as its receipt, reusing the receipts feature
+above.
 
 - If the bill's currency differs from the group's, the amount is converted
   at today's rate (`services/fxRates.js`, the same live-FX feature behind
@@ -102,10 +103,10 @@ expense as its receipt, reusing the receipts feature above.
   shown, never silently applied.
 - If the photo isn't a legible receipt, the form still opens — empty or
   partially filled — rather than making something up.
-- Needs **your own** `ANTHROPIC_API_KEY` in `server/.env`
-  (console.anthropic.com) — same pattern as every other integration here.
-  Unset, the button shows a clear "not configured" message instead of
-  failing silently, and the rest of the form works normally either way.
+- Needs **your own** `NVIDIA_API_KEY` in `server/.env`
+  (build.nvidia.com) — same pattern as every other integration here. Unset,
+  the button shows a clear "not configured" message instead of failing
+  silently, and the rest of the form works normally either way.
 
 ## Running it locally
 

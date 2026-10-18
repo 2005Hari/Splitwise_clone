@@ -1,43 +1,31 @@
-// AI receipt scanning: a photo of a restaurant/hotel bill goes in, a
-// structured { merchant, amount, currency, category } guess comes out, so
-// the "Add an expense" form can be pre-filled instead of typed by hand.
-// Uses the Claude API directly (not a third-party OCR service) with its
-// structured-outputs feature, which validates the model's response against
-// a schema server-side rather than hoping a prompted "return JSON" holds up.
+// AI receipt scanning via NVIDIA NIM (https://build.nvidia.com), an
+// OpenAI-compatible vision API. A receipt photo goes in, a structured
+// {merchant, amount, currency, category, readable} guess comes out, so the
+// "Add an expense" form can be pre-filled instead of typed by hand.
 //
 // Same pattern as every other integration in this app: the user supplies
-// their own ANTHROPIC_API_KEY in .env (console.anthropic.com); unset, the
-// feature returns a clear "not configured" error instead of a broken call.
-import Anthropic from '@anthropic-ai/sdk';
-import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { z } from 'zod';
+// their own NVIDIA_API_KEY in .env (build.nvidia.com); unset, the feature
+// returns a clear "not configured" error instead of a broken call. Plain
+// `fetch` against the documented REST contract, same house style as
+// services/youpiClient.js, rather than pulling in an SDK for one endpoint.
 import { CATEGORY_IDS } from './categories.js';
 
-let client;
-function getClient() {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
-  if (!client) client = new Anthropic();
-  return client;
-}
+const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 
-const ReceiptSchema = z.object({
-  readable: z
-    .boolean()
-    .describe('false if this is not a legible receipt/bill — too blurry, cropped, or not a receipt at all'),
-  merchantName: z.string().describe('The business/establishment name printed on the receipt, or "" if unreadable'),
-  amount: z
-    .string()
-    .describe(
-      'The final total actually paid (not a subtotal, not a single line item), as a plain decimal string e.g. "1249.50". "0" if unreadable.'
-    ),
-  currency: z
-    .string()
-    .describe('Best-guess ISO 4217 currency code (INR, USD, EUR, GBP, ...) from symbols, "Rs", "$", or context'),
-  category: z.enum(CATEGORY_IDS).describe('Best matching expense category for this receipt'),
-  notes: z
-    .string()
-    .describe('One short sentence on anything worth flagging (why this category, or what made it hard to read). "" if nothing notable.'),
-});
+const PROMPT = `This is a photo of a restaurant, hotel, or shop receipt. Reply with ONLY a JSON object (no markdown fences, no other text) with exactly these keys:
+- "merchantName": string — the business name on the receipt, "" if unreadable
+- "amount": string — the final total actually paid (not a subtotal, not one line item), as a plain decimal number e.g. "1249.50", "" if unreadable
+- "currency": string — best-guess ISO 4217 currency code (INR, USD, EUR, ...) from symbols like "Rs" or "$" or context
+- "category": one of ${JSON.stringify(CATEGORY_IDS)} — best matching expense category
+- "readable": boolean — false if this is not a legible receipt (too blurry, cropped, or not a receipt at all)
+- "notes": string — one short sentence on anything worth flagging, "" if nothing notable`;
+
+// Some vision models wrap JSON in ```json fences despite instructions not
+// to, even with response_format: json_object requested — strip before parsing.
+function extractJson(text) {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  return JSON.parse((fenced ? fenced[1] : text).trim());
+}
 
 /**
  * @param {Buffer} imageBuffer
@@ -45,46 +33,61 @@ const ReceiptSchema = z.object({
  * @returns {Promise<{readable: boolean, merchantName: string, amount: string, currency: string, category: string, notes: string}>}
  */
 export async function extractReceiptData(imageBuffer, mimeType) {
-  const anthropic = getClient();
-  if (!anthropic) {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) {
     const err = new Error(
-      'AI receipt scanning needs your own Anthropic API key: set ANTHROPIC_API_KEY in server/.env ' +
-        '(get one at https://console.anthropic.com/settings/keys).'
+      'AI receipt scanning needs your own NVIDIA API key: set NVIDIA_API_KEY in server/.env ' +
+        '(get one at https://build.nvidia.com).'
     );
     err.notConfigured = true;
     throw err;
   }
 
-  const model = process.env.ANTHROPIC_MODEL || 'claude-opus-5-5';
+  const model = process.env.NVIDIA_VISION_MODEL || 'meta/llama-3.2-90b-vision-instruct';
+  const dataUrl = `data:${mimeType};base64,${imageBuffer.toString('base64')}`;
 
-  const response = await anthropic.messages.parse({
-    model,
-    max_tokens: 1024,
-    output_config: {
-      format: zodOutputFormat(ReceiptSchema),
-      effort: 'low', // a bounded extraction task, not open-ended reasoning
-    },
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mimeType, data: imageBuffer.toString('base64') } },
-          {
-            type: 'text',
-            text:
-              'This is a photo of a restaurant, hotel, or shop receipt. Extract the merchant name, the ' +
-              'final total amount actually paid, its currency, and the expense category it best matches.',
-          },
-        ],
-      },
-    ],
+  const response = await fetch(NVIDIA_API_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      max_tokens: 512,
+      temperature: 0,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: PROMPT },
+            { type: 'image_url', image_url: { url: dataUrl } },
+          ],
+        },
+      ],
+    }),
   });
 
-  if (response.stop_reason === 'refusal') {
-    throw new Error('The AI declined to process this image.');
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`NVIDIA API error (${response.status}): ${body.slice(0, 300)}`);
   }
-  if (!response.parsed_output) {
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('NVIDIA API returned an empty response.');
+
+  let parsed;
+  try {
+    parsed = extractJson(content);
+  } catch {
     throw new Error('Could not read structured data from that receipt — try a clearer photo.');
   }
-  return response.parsed_output;
+
+  return {
+    readable: parsed.readable !== false,
+    merchantName: typeof parsed.merchantName === 'string' ? parsed.merchantName : '',
+    amount: typeof parsed.amount === 'string' ? parsed.amount : '',
+    currency: typeof parsed.currency === 'string' && parsed.currency ? parsed.currency.toUpperCase() : 'INR',
+    category: CATEGORY_IDS.includes(parsed.category) ? parsed.category : 'general',
+    notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+  };
 }

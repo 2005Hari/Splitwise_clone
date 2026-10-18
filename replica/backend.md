@@ -129,14 +129,19 @@ A feature Splitwise itself doesn't have, same build philosophy as YouPI-PG:
 official API, user's own credentials, graceful no-op when unconfigured.
 
 - [x] **`services/receiptAI.js` / `routes/scan.js`** — a receipt photo goes
-      to the Claude API (vision + structured outputs, `messages.parse()`
-      with a Zod schema), comes back as `{merchant, amount, currency,
-      category}`, and pre-fills the Add Expense form client-side
+      to NVIDIA NIM's vision API (`meta/llama-3.2-90b-vision-instruct` by
+      default, OpenAI-compatible chat completions with `response_format:
+      json_object`), comes back as `{merchant, amount, currency,
+      category, readable}`, and pre-fills the Add Expense form client-side
       (`components/ScanReceipt.jsx`). It never creates the expense itself —
       the person still picks who splits it and reviews before saving, same
-      as a manually-typed expense. Needs the user's own
-      `ANTHROPIC_API_KEY`; unset, the route returns a clear 503 rather than
-      failing in a way that looks like a bug.
+      as a manually-typed expense. Needs the user's own `NVIDIA_API_KEY`;
+      unset, the route returns a clear 503 rather than failing in a way
+      that looks like a bug. (Originally built against the Claude API —
+      switched to NVIDIA mid-build once a real NVIDIA key became available
+      to test with and the user chose to use it as the shipped provider
+      instead of Anthropic; see the verification note below for how that
+      choice was reached.)
 - [x] A currency mismatch between the receipt and the group converts at a
       live rate (reusing `services/fxRates.js`) and says so; an unreadable
       photo opens the form anyway instead of inventing numbers.
@@ -148,17 +153,19 @@ official API, user's own credentials, graceful no-op when unconfigured.
       latency bounded regardless of the original phone-camera photo size,
       and that same downscaled image is what ends up as the receipt
       attachment, so there's no separate larger upload after.
-- [x] **Not verified against a live Claude API call in this build
-      environment** — no `ANTHROPIC_API_KEY` was available to test with
-      here (and this session's own internal credentials were deliberately
-      not repurposed for the app — they're not a real deployment key and
-      wouldn't reflect what a user's own key does). Verified instead: the
-      SDK call shape against the installed SDK's actual exports, the
-      "not configured" 503 path, file-type/size validation, the currency
-      conversion math (the same `convertCents` already live-tested
-      elsewhere), and that the UI degrades gracefully (shows the error,
-      the rest of the form stays fully usable) when the call fails. The
-      first real scan should be checked once a key is added.
+- [x] **Verified against a live NVIDIA API call**, not just the no-op path:
+      a synthetic test receipt (generated with PIL, not a real document)
+      run through the actual shipped route (`POST
+      /expenses/scan`) correctly returned the merchant name and exact total
+      the image showed; a cross-currency scan converted correctly at the
+      live rate; a blank image correctly came back `readable: false` with
+      an explanatory note instead of invented numbers. Then driven through
+      the real browser UI end to end: the form visibly pre-filled from the
+      live response, the expense saved, and the photo auto-attached as a
+      receipt (confirmed by its thumbnail actually rendering). No
+      Anthropic key was ever available in this build environment to test
+      the original implementation the same way — that's the reason it was
+      actually switched, not left as an unverified alternative.
 - Found and fixed while building this: a global `input { display: block }`
   rule was overriding the browser's default `[hidden] { display: none }`,
   so every hidden file input in the app — including the receipts feature's
