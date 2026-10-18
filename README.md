@@ -7,15 +7,16 @@ Delivery payment gateway.
 
 **Features:** groups and direct (non-group) expenses with friends · equal,
 exact-amount, percentage and shares/ratio splits · expense editing, soft
-deletion, comments and photo/PDF receipts · categories · recurring expenses
-(rent, subscriptions) · a per-group activity feed · browser push
-notifications and email, both optional and self-hosted (no third-party
-account) · cross-group Friends balances (aggregated across every shared
-group, bucketed by currency, with a live-FX "combined, approximate" total)
-· a dashboard "you owe / you're owed" overall summary · leave or remove a
-group member · settle up for real over UPI (YouPI-PG, in-app,
-webhook-confirmed) or record a cash payment instantly, same as Splitwise's
-own "mark as paid".
+deletion, comments and photo/PDF receipts · **scan a receipt and the AI
+pre-fills the expense** (merchant, amount, category — see below) ·
+categories · recurring expenses (rent, subscriptions) · a per-group activity
+feed · browser push notifications and email, both optional and self-hosted
+(no third-party account) · cross-group Friends balances (aggregated across
+every shared group, bucketed by currency, with a live-FX "combined,
+approximate" total) · a dashboard "you owe / you're owed" overall summary ·
+leave or remove a group member · settle up for real over UPI (YouPI-PG,
+in-app, webhook-confirmed) or record a cash payment instantly, same as
+Splitwise's own "mark as paid".
 
 It rebuilds the *features and flow* of a Splitwise-style app, clean-room —
 not Splitwise's code, name, logo, or content. See `replica/architecture.md`
@@ -81,6 +82,30 @@ clear `503` instead of a broken checkout.
    server-to-server webhook (`POST /api/payments/webhook/youpi`) lands and
    the backend verifies its HMAC-SHA256 signature — exactly as YouPI-PG's own
    docs require, because browser events alone are never proof of payment.
+
+## AI receipt scanning
+
+Tap **Scan a receipt** on the Add Expense form, photograph (or pick) a
+restaurant/hotel/shop bill, and the Claude API (vision, structured outputs —
+`server/src/services/receiptAI.js`) reads it and pre-fills description,
+amount and category. It never creates the expense itself: the form still
+opens with everyone checked for an equal split (so accepting the defaults
+is "just create it"), or you can change who's in before saving (the
+"ask which friend to add" case) — either way it's the normal, fully
+reviewable Add Expense form, just started from a photo instead of a blank
+page. Once you save, the same photo is automatically attached to the new
+expense as its receipt, reusing the receipts feature above.
+
+- If the bill's currency differs from the group's, the amount is converted
+  at today's rate (`services/fxRates.js`, the same live-FX feature behind
+  the dashboard's "combined, approximate" total) and the conversion is
+  shown, never silently applied.
+- If the photo isn't a legible receipt, the form still opens — empty or
+  partially filled — rather than making something up.
+- Needs **your own** `ANTHROPIC_API_KEY` in `server/.env`
+  (console.anthropic.com) — same pattern as every other integration here.
+  Unset, the button shows a clear "not configured" message instead of
+  failing silently, and the rest of the form works normally either way.
 
 ## Running it locally
 

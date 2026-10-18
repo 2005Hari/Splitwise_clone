@@ -87,6 +87,15 @@ label {
   margin-bottom: 12px;
 }
 
+/* The global `input { display: block }` below overrides the browser's
+   default [hidden] { display: none } rule (author CSS always beats the
+   non-!important UA stylesheet) — without this, any hidden input/select
+   in the app would render visibly instead of staying hidden. */
+input[hidden],
+select[hidden] {
+  display: none !important;
+}
+
 input,
 select {
   display: block;
@@ -593,4 +602,19 @@ legend {
 .fx-note {
   font-size: 0.75rem;
   font-weight: 400;
+}
+
+.scan-receipt {
+  margin-bottom: 14px;
+}
+.scan-receipt-btn {
+  cursor: pointer;
+  display: inline-block;
+}
+.scan-note {
+  background: #fff8e6;
+  border: 1px solid #f3e0a8;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 14px;
 }

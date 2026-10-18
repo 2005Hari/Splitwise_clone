@@ -39,7 +39,7 @@ function buildInitialRows(members, splitType, initialExpense) {
   });
 }
 
-export function ExpenseForm({ groupId, members, categories, initialExpense, onSaved, onCancel }) {
+export function ExpenseForm({ groupId, members, categories, initialExpense, prefill, onSaved, onCancel }) {
   const isEdit = !!initialExpense;
   const [description, setDescription] = useState(initialExpense?.description || '');
   const [amount, setAmount] = useState(
@@ -56,6 +56,16 @@ export function ExpenseForm({ groupId, members, categories, initialExpense, onSa
     setRows(buildInitialRows(members, splitType, splitType === initialExpense?.split_type ? initialExpense : null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splitType, members]);
+
+  // Pre-fills a fresh (non-edit) form from an AI receipt scan. A new object
+  // arrives each time the parent scans a photo, so this re-seeds on every scan.
+  useEffect(() => {
+    if (!prefill || isEdit) return;
+    if (prefill.description) setDescription(prefill.description);
+    if (prefill.amountCents) setAmount((prefill.amountCents / 100).toFixed(2));
+    if (prefill.category) setCategory(prefill.category);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill]);
 
   const updateRow = (userId, patch) => {
     setRows((prev) => prev.map((r) => (r.userId === userId ? { ...r, ...patch } : r)));
@@ -121,12 +131,13 @@ export function ExpenseForm({ groupId, members, categories, initialExpense, onSa
       const payload = buildPayload();
       if (isEdit) {
         await api.patch(`/api/groups/${groupId}/expenses/${initialExpense.id}`, payload);
+        onSaved?.(initialExpense.id);
       } else {
-        await api.post(`/api/groups/${groupId}/expenses`, payload);
+        const { expense } = await api.post(`/api/groups/${groupId}/expenses`, payload);
         setDescription('');
         setAmount('');
+        onSaved?.(expense.id);
       }
-      onSaved?.();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -135,8 +146,7 @@ export function ExpenseForm({ groupId, members, categories, initialExpense, onSa
   };
 
   return (
-    <form className={isEdit ? 'expense-edit-form' : 'card'} onSubmit={onSubmit}>
-      {!isEdit && <h3>Add an expense</h3>}
+    <form className={isEdit ? 'expense-edit-form' : 'expense-add-form'} onSubmit={onSubmit}>
       <label>
         Description
         <input

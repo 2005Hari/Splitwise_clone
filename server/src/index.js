@@ -15,6 +15,7 @@ import overviewRoutes from './routes/overview.js';
 import receiptRoutes from './routes/receipts.js';
 import recurringRoutes from './routes/recurring.js';
 import pushRoutes from './routes/push.js';
+import scanRoutes from './routes/scan.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { EXPENSE_CATEGORIES } from './services/categories.js';
 import { startRecurringExpenseScheduler } from './services/scheduler.js';
@@ -40,10 +41,15 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/categories', (req, res) => res.json({ categories: EXPENSE_CATEGORIES }));
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
+// More specific /expenses/* paths are mounted before the general
+// /expenses router so they're never shadowed by it (Express falls through
+// a sub-router with no matching route+method, but mounting order here
+// keeps that implicit rather than load-bearing).
+app.use('/api/groups/:groupId/expenses/scan', scanRoutes);
+app.use('/api/groups/:groupId/expenses/:expenseId/receipts', receiptRoutes);
 app.use('/api/groups/:groupId/expenses', expenseRoutes);
 app.use('/api/groups/:groupId/balances', balanceRoutes);
 app.use('/api/groups/:groupId/settlements', settlementRoutes);
-app.use('/api/groups/:groupId/expenses/:expenseId/receipts', receiptRoutes);
 app.use('/api/groups/:groupId/recurring', recurringRoutes);
 app.use('/api/friends', friendRoutes);
 app.use('/api/overview', overviewRoutes);

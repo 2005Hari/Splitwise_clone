@@ -123,6 +123,49 @@ so the recurring-expense scheduler replays a charge through the *exact same*
 validated split engine a one-off expense uses — no parallel, potentially
 drifting implementation.
 
+## Fourth pass: AI receipt scanning
+
+A feature Splitwise itself doesn't have, same build philosophy as YouPI-PG:
+official API, user's own credentials, graceful no-op when unconfigured.
+
+- [x] **`services/receiptAI.js` / `routes/scan.js`** — a receipt photo goes
+      to the Claude API (vision + structured outputs, `messages.parse()`
+      with a Zod schema), comes back as `{merchant, amount, currency,
+      category}`, and pre-fills the Add Expense form client-side
+      (`components/ScanReceipt.jsx`). It never creates the expense itself —
+      the person still picks who splits it and reviews before saving, same
+      as a manually-typed expense. Needs the user's own
+      `ANTHROPIC_API_KEY`; unset, the route returns a clear 503 rather than
+      failing in a way that looks like a bug.
+- [x] A currency mismatch between the receipt and the group converts at a
+      live rate (reusing `services/fxRates.js`) and says so; an unreadable
+      photo opens the form anyway instead of inventing numbers.
+- [x] Once the resulting expense is saved, the same photo is attached to it
+      as a receipt automatically, reusing `routes/receipts.js` rather than
+      a second upload path.
+- [x] Client-side image downscaling (`ScanReceipt.jsx`, canvas-based, max
+      1600px / JPEG 0.85) before upload — keeps the API call's cost and
+      latency bounded regardless of the original phone-camera photo size,
+      and that same downscaled image is what ends up as the receipt
+      attachment, so there's no separate larger upload after.
+- [x] **Not verified against a live Claude API call in this build
+      environment** — no `ANTHROPIC_API_KEY` was available to test with
+      here (and this session's own internal credentials were deliberately
+      not repurposed for the app — they're not a real deployment key and
+      wouldn't reflect what a user's own key does). Verified instead: the
+      SDK call shape against the installed SDK's actual exports, the
+      "not configured" 503 path, file-type/size validation, the currency
+      conversion math (the same `convertCents` already live-tested
+      elsewhere), and that the UI degrades gracefully (shows the error,
+      the rest of the form stays fully usable) when the call fails. The
+      first real scan should be checked once a key is added.
+- Found and fixed while building this: a global `input { display: block }`
+  rule was overriding the browser's default `[hidden] { display: none }`,
+  so every hidden file input in the app — including the receipts feature's
+  existing "Attach a receipt" button from the previous round — rendered its
+  native file-picker UI instead of staying hidden. One global CSS rule
+  fixed both.
+
 ## What's intentionally not built
 Native mobile apps — meaningfully more scope than a backend/frontend change
 (a separate React Native or Capacitor project, device testing, app store
