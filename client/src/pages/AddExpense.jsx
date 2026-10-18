@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 
 export function AddExpense({ groupId, members, onAdded }) {
@@ -8,6 +8,26 @@ export function AddExpense({ groupId, members, onAdded }) {
   const [participantIds, setParticipantIds] = useState(() => new Set(members.map((m) => m.id)));
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const knownMemberIds = useRef(new Set(members.map((m) => m.id)));
+
+  // `members` can grow after this form has already mounted (someone gets
+  // invited mid-session). Default newly-seen members to checked, same as on
+  // first load, instead of silently leaving them out of the split; keep
+  // whatever the user already chose for members we've seen before.
+  useEffect(() => {
+    const newcomers = members.filter((m) => !knownMemberIds.current.has(m.id));
+    if (newcomers.length > 0) {
+      setParticipantIds((prev) => {
+        const next = new Set(prev);
+        for (const m of newcomers) next.add(m.id);
+        return next;
+      });
+    }
+    knownMemberIds.current = new Set(members.map((m) => m.id));
+
+    setPaidBy((prev) => (prev && members.some((m) => m.id === Number(prev)) ? prev : members[0]?.id ?? ''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members]);
 
   const toggleParticipant = (id) => {
     setParticipantIds((prev) => {
