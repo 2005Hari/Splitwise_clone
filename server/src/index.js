@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 
 import './db/index.js'; // applies schema.sql on boot
 import authRoutes from './routes/auth.js';
@@ -28,6 +30,23 @@ if (!process.env.JWT_SECRET) {
   );
 }
 
+// Running behind a reverse proxy (nginx/Caddy/a PaaS load balancer) in
+// production — needed so req.secure and X-Forwarded-* are trusted, which
+// in turn makes the `secure: true` session cookie actually get set.
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
+// contentSecurityPolicy is meant for HTML pages — this is a JSON/file API,
+// served from a different origin than the client in most deployments.
+// crossOriginResourcePolicy is relaxed so the client can still load receipt
+// images directly from the API's /receipts/:id/file URLs.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173', credentials: true }));
 app.use(cookieParser());
 
@@ -36,6 +55,18 @@ app.use(cookieParser());
 app.use('/api/payments/webhook', webhookRoutes);
 
 app.use(express.json());
+
+// Slows down credential-stuffing / brute-force attempts against login and
+// registration. Generous enough not to bother a real user who mistypes a
+// password a few times.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.get('/api/categories', (req, res) => res.json({ categories: EXPENSE_CATEGORIES }));

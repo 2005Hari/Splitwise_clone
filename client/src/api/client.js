@@ -1,4 +1,9 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// In dev, client/.env points this at the API's own port (Vite serves the
+// client; the API is a separate process). Left unset — the production
+// Docker build does this deliberately — it falls back to '', so every
+// request is same-origin and goes through nginx's /api proxy. That keeps
+// auth cookies first-party instead of fighting SameSite across two domains.
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 async function request(path, options = {}) {
   const isFormData = options.body instanceof FormData;

@@ -32,6 +32,18 @@ if (fs.existsSync(resolvedPath)) {
   const existingVersion = currentVersion(probe);
   probe.close();
   if (existingVersion !== SCHEMA_VERSION) {
+    // In production this rotation means real user data becomes a cold
+    // backup file and the app starts from an empty database — fine for a
+    // dev box with no users, not something that should ever happen silently
+    // once the app is actually deployed. Require an explicit opt-in there.
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SCHEMA_RESET !== 'true') {
+      throw new Error(
+        `Database schema version mismatch (on disk: v${existingVersion}, code: v${SCHEMA_VERSION}). ` +
+          `Refusing to start in production to avoid silently resetting real data. ` +
+          `Back up ${resolvedPath} yourself, write a real migration, or — only if you ` +
+          `intend to wipe this database — set ALLOW_SCHEMA_RESET=true and restart.`
+      );
+    }
     const backupPath = `${resolvedPath}.v${existingVersion}.bak-${Date.now()}`;
     fs.renameSync(resolvedPath, backupPath);
     for (const ext of ['-wal', '-shm']) {
